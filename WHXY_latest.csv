@@ -1,0 +1,15 @@
+Layer name,W,H,X,Y,Can Move,Covering Layer Name
+bg,1760,2416,0,0,No,
+a1,369,302,77,480,Horizontal,
+a2,174,165,141,1677,Horizontal,fg2
+a3,81,134,536,892,Horizontal,fg3
+a4,600,394,135,22,Horizontal,
+a5,93,161,1595,1946,Vertical,
+a6,468,113,1075,1261,Horizontal,fg4
+a7,84,92,262,2107,Horizontal,fg1
+a8,167,218,1512,1619,Horizontal,
+a9,197,425,1543,892,Vertical,
+fg1,232,192,156,2065,No,
+fg2,210,229,123,1613,No,
+fg3,119,98,513,868,No,
+fg4,730,326,1030,1245,No,

@@ -1,0 +1,562 @@
+:root {
+  color-scheme: light;
+  --bg: #fff9eb;
+  --surface: rgba(255, 252, 246, 0.9);
+  --surface-strong: #fffdf8;
+  --surface-border: #d8d1bc;
+  --text: #1e1c10;
+  --muted: #5d655a;
+  --primary: #4a7c59;
+  --primary-deep: #2e573e;
+  --accent: #feb063;
+  --accent-soft: rgba(254, 176, 99, 0.22);
+  --shadow-soft: 0 16px 30px rgba(20, 28, 18, 0.08);
+  --shadow-card: 0 24px 60px rgba(17, 22, 16, 0.24);
+  --safe-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Plus Jakarta Sans", "Avenir Next", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.45), transparent 30%),
+    linear-gradient(180deg, #f2ecdb 0%, #fff9eb 100%);
+  color: var(--text);
+}
+
+button,
+img {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100dvh;
+  position: relative;
+}
+
+.game-layout {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.playfield {
+  min-height: 0;
+  position: relative;
+  padding: 18px 16px 12px;
+  overflow: hidden;
+}
+
+.playfield-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 100%, rgba(74, 124, 89, 0.2), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.25), transparent 18%);
+  pointer-events: none;
+}
+
+.scene-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  overflow: hidden;
+  border-radius: 28px;
+}
+
+.scene-stage {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1760px;
+  height: 2416px;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.scene-background {
+  display: block;
+  width: 1760px;
+  height: 2416px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.animal-button {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.animal-button:disabled {
+  cursor: default;
+}
+
+.animal-button:hover {
+  transform: scale(1.03);
+}
+
+.animal-button:disabled:hover,
+.animal-button:disabled:active {
+  transform: none;
+}
+
+.animal-button:active {
+  transform: scale(0.98);
+}
+
+.animal-button:focus-visible {
+  outline: 4px solid rgba(74, 124, 89, 0.45);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+.animal-button.is-found {
+  cursor: default;
+}
+
+.animal-button.is-covered {
+  pointer-events: none;
+}
+
+.animal-button.is-found:hover,
+.animal-button.is-found:active {
+  transform: none;
+}
+
+.animal-motion,
+.animal-sprite,
+.animal-highlight {
+  position: absolute;
+}
+
+.animal-motion {
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.animal-motion.is-horizontal {
+  animation: drift-horizontal var(--idle-duration) ease-in-out infinite alternate;
+  animation-delay: var(--idle-delay);
+}
+
+.animal-motion.is-vertical {
+  animation: drift-vertical var(--idle-duration) ease-in-out infinite alternate;
+  animation-delay: var(--idle-delay);
+}
+
+.animal-sprite {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 4px 10px rgba(22, 28, 18, 0.12));
+}
+
+.animal-highlight {
+  left: 50%;
+  top: 50%;
+  border-radius: 999px;
+  background: #fff;
+  border: 3px solid #111;
+  box-shadow: 0 16px 32px rgba(17, 17, 17, 0.2);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.animal-highlight.is-fresh {
+  animation: pop-highlight 260ms cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+}
+
+.animal-sprite.is-celebrating {
+  animation: found-bounce 280ms ease-out both;
+  z-index: 1;
+}
+
+.cover-button {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  overflow: visible;
+  transform: translateY(0);
+  transition:
+    transform 360ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 360ms ease,
+    filter 360ms ease;
+  will-change: transform, opacity, filter;
+}
+
+.cover-button:hover {
+  filter: brightness(1.03);
+}
+
+.cover-button:active {
+  filter: brightness(0.98);
+}
+
+.cover-button.is-open {
+  transform: translateY(calc(-1 * var(--cover-lift)));
+  opacity: 0.92;
+  filter: drop-shadow(0 18px 20px rgba(17, 17, 17, 0.18));
+}
+
+.cover-button:focus-visible {
+  outline: 4px solid rgba(74, 124, 89, 0.45);
+  outline-offset: 4px;
+  border-radius: 20px;
+}
+
+.cover-sprite {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.progress-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  min-width: 158px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: rgba(255, 249, 235, 0.9);
+  border: 1px solid rgba(216, 209, 188, 0.86);
+  box-shadow: var(--shadow-soft);
+  color: var(--primary);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.inventory-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+  padding: 14px 14px calc(12px + var(--safe-bottom));
+  background: rgba(253, 251, 245, 0.92);
+  border-top: 2px solid rgba(216, 209, 188, 0.92);
+  box-shadow: 0 -16px 40px rgba(17, 22, 16, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.inventory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 auto 12px;
+  max-width: 1120px;
+}
+
+.inventory-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.ghost-button,
+.primary-button {
+  border: 0;
+  border-radius: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.ghost-button {
+  padding: 10px 14px;
+  background: rgba(74, 124, 89, 0.1);
+  color: var(--primary);
+}
+
+.primary-button {
+  padding: 14px 22px;
+  min-width: 180px;
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 6px 0 var(--primary-deep);
+}
+
+.ghost-button:hover,
+.primary-button:hover {
+  transform: translateY(-1px);
+}
+
+.ghost-button:active,
+.primary-button:active {
+  transform: translateY(2px);
+}
+
+.primary-button:active {
+  box-shadow: 0 4px 0 var(--primary-deep);
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 8px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.inventory-item {
+  min-width: 0;
+}
+
+.inventory-icon-frame {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  width: 100%;
+  min-height: 44px;
+  border-radius: 18px;
+  background: var(--surface-strong);
+  border: 2px dashed rgba(93, 101, 90, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.inventory-item.is-found .inventory-icon-frame {
+  background: var(--primary);
+  border-color: rgba(74, 124, 89, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 10px 22px rgba(74, 124, 89, 0.2);
+}
+
+.inventory-icon {
+  width: 76%;
+  height: 76%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.inventory-item.is-found .inventory-icon {
+  transform: scale(1.02);
+}
+
+.inventory-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.inventory-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: transparent;
+  color: transparent;
+  transform: scale(0.8);
+  transition: transform 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.inventory-check.is-visible {
+  background: rgba(74, 124, 89, 0.14);
+  color: var(--primary);
+  transform: scale(1);
+}
+
+.win-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(30, 28, 16, 0.28);
+  backdrop-filter: blur(3px);
+}
+
+.win-overlay.hidden {
+  display: none;
+}
+
+.win-card {
+  width: min(100%, 420px);
+  padding: 34px 28px 28px;
+  border-radius: 28px;
+  background: rgba(255, 253, 248, 0.98);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.win-card h1 {
+  margin: 0 0 12px;
+  font-size: clamp(2rem, 6vw, 3.1rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.win-card p {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.win-badge {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 20px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(254, 176, 99, 0.25), transparent 72%);
+  color: #a95e13;
+  font-size: 2.8rem;
+}
+
+body.is-win .scene-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(30, 28, 16, 0.14);
+  pointer-events: none;
+}
+
+@keyframes pop-highlight {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes found-bounce {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes drift-horizontal {
+  0% {
+    transform: translateX(-10px);
+  }
+
+  100% {
+    transform: translateX(10px);
+  }
+}
+
+@keyframes drift-vertical {
+  0% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(10px);
+  }
+}
+
+@media (min-width: 900px) {
+  .playfield {
+    padding: 24px 24px 16px;
+  }
+
+  .inventory-bar {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .inventory-grid {
+    gap: 12px;
+  }
+
+  .inventory-icon-frame {
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 680px) {
+  .playfield {
+    padding: 10px 10px 8px;
+  }
+
+  .scene-shell {
+    border-radius: 22px;
+  }
+
+  .progress-pill {
+    bottom: 10px;
+    min-width: 136px;
+    padding: 10px 14px;
+    font-size: 1rem;
+  }
+
+  .inventory-header {
+    margin-bottom: 10px;
+  }
+
+  .inventory-title {
+    font-size: 0.85rem;
+  }
+
+  .ghost-button {
+    padding: 8px 12px;
+  }
+
+  .inventory-grid {
+    gap: 6px;
+  }
+
+  .inventory-icon-frame {
+    border-radius: 14px;
+  }
+
+  .inventory-meta {
+    margin-top: 4px;
+    font-size: 0.72rem;
+  }
+}

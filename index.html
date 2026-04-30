@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>Hidden Animals Playtest</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="game-layout">
+        <section class="playfield">
+          <div class="playfield-backdrop"></div>
+          <div class="scene-shell" id="scene-shell" aria-label="Hidden animal scene">
+            <div class="scene-stage" id="scene-stage">
+              <img
+                class="scene-background"
+                src="./assets_latest/bg.png"
+                alt="Dense jungle background for the hidden animal playtest"
+              />
+            </div>
+          </div>
+
+          <div class="progress-pill" id="progress-pill" aria-live="polite"></div>
+        </section>
+
+        <footer class="inventory-bar">
+          <div class="inventory-header">
+            <p class="inventory-title">Find all 9 animals</p>
+            <button class="ghost-button" id="reset-button" type="button">Reset</button>
+          </div>
+          <div class="inventory-grid" id="inventory-grid" aria-label="Animal inventory"></div>
+        </footer>
+      </main>
+
+      <div class="win-overlay hidden" id="win-overlay" aria-hidden="true">
+        <div class="win-card">
+          <div class="win-badge" aria-hidden="true">✦</div>
+          <h1>All animals found!</h1>
+          <p>
+            You uncovered every hidden creature in the jungle. Tap below to run
+            the playtest again.
+          </p>
+          <button class="primary-button" id="play-again-button" type="button">
+            Play Again
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
