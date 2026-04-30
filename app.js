@@ -9,7 +9,7 @@ const resetButton = document.querySelector("#reset-button");
 const playAgainButton = document.querySelector("#play-again-button");
 
 const HIT_PADDING = 40;
-const HIGHLIGHT_DURATION_MS = 5000;
+const HIGHLIGHT_DURATION_MS = 2500;
 const COVER_OPEN_DURATION_MS = 5000;
 const foundAnimalIds = new Set();
 const activeHighlightIds = new Set();
