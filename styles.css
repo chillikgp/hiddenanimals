@@ -44,18 +44,20 @@ button {
 }
 
 .app-shell {
-  min-height: 100dvh;
+  height: 100dvh;
   position: relative;
 }
 
 .game-layout {
-  min-height: 100dvh;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
 
 .playfield {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   position: relative;
   padding: 18px 16px 12px;
@@ -72,10 +74,10 @@ button {
 }
 
 .scene-shell {
+  flex: 1;
   position: relative;
   width: 100%;
-  height: 100%;
-  min-height: 320px;
+  min-height: 0;
   overflow: hidden;
   border-radius: 28px;
   touch-action: none;
@@ -84,6 +86,79 @@ button {
 
 .scene-shell:active {
   cursor: grabbing;
+}
+
+.scene-pan-indicator {
+  position: relative;
+  z-index: 2;
+  width: min(64%, 360px);
+  height: 22px;
+  margin: 8px auto 0;
+  padding: 7px 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 180ms ease, transform 180ms ease;
+  touch-action: none;
+}
+
+.scene-pan-indicator.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.scene-pan-indicator:focus-visible {
+  outline: 3px solid rgba(74, 124, 89, 0.38);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+.scene-pan-rail {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent),
+    rgba(74, 124, 89, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(74, 124, 89, 0.16);
+}
+
+.scene-pan-rail::before,
+.scene-pan-rail::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-left: 2px solid rgba(74, 124, 89, 0.6);
+  border-bottom: 2px solid rgba(74, 124, 89, 0.6);
+}
+
+.scene-pan-rail::before {
+  left: 10px;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.scene-pan-rail::after {
+  right: 10px;
+  transform: translateY(-50%) rotate(-135deg);
+}
+
+.scene-pan-thumb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  min-width: 42px;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.62), transparent 45%, rgba(255, 255, 255, 0.55)),
+    var(--primary);
+  box-shadow: 0 0 0 2px rgba(255, 249, 235, 0.8);
+  will-change: transform, width;
 }
 
 .scene-stage {
@@ -254,22 +329,19 @@ button {
 }
 
 .progress-pill {
-  position: absolute;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  min-width: 158px;
-  padding: 12px 18px;
+  justify-self: center;
+  min-width: 132px;
+  padding: 9px 16px;
   border-radius: 999px;
   background: rgba(255, 249, 235, 0.9);
   border: 1px solid rgba(216, 209, 188, 0.86);
   box-shadow: var(--shadow-soft);
   color: var(--primary);
-  font-size: 1.15rem;
+  font-size: 0.98rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
   text-align: center;
   backdrop-filter: blur(10px);
+  white-space: nowrap;
 }
 
 .inventory-bar {
@@ -283,9 +355,9 @@ button {
 }
 
 .inventory-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   margin: 0 auto 12px;
   max-width: 1120px;
@@ -296,6 +368,7 @@ button {
   color: var(--muted);
   font-size: 0.95rem;
   font-weight: 700;
+  min-width: 0;
 }
 
 .ghost-button,
@@ -308,6 +381,7 @@ button {
 }
 
 .ghost-button {
+  justify-self: end;
   padding: 10px 14px;
   background: rgba(74, 124, 89, 0.1);
   color: var(--primary);
@@ -335,15 +409,34 @@ button {
 }
 
 .inventory-grid {
-  display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  gap: 12px;
   max-width: 1120px;
   margin: 0 auto;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 2px 2px 8px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .inventory-item {
-  min-width: 0;
+  flex: 0 0 112px;
+  width: 112px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.inventory-item:focus-visible {
+  outline: 4px solid rgba(74, 124, 89, 0.4);
+  outline-offset: 3px;
+  border-radius: 20px;
 }
 
 .inventory-icon-frame {
@@ -351,7 +444,7 @@ button {
   place-items: center;
   aspect-ratio: 1;
   width: 100%;
-  min-height: 44px;
+  min-height: 112px;
   border-radius: 18px;
   background: var(--surface-strong);
   border: 2px dashed rgba(93, 101, 90, 0.3);
@@ -364,9 +457,17 @@ button {
   border-color: rgba(74, 124, 89, 0.92);
 }
 
+.inventory-item:hover .inventory-icon-frame {
+  transform: translateY(-1px);
+}
+
+.inventory-item:active .inventory-icon-frame {
+  transform: translateY(1px) scale(0.99);
+}
+
 .inventory-icon {
-  width: 76%;
-  height: 76%;
+  width: 88%;
+  height: 88%;
   object-fit: contain;
   user-select: none;
 }
@@ -403,6 +504,64 @@ button {
   background: rgba(74, 124, 89, 0.14);
   color: var(--primary);
   transform: scale(1);
+}
+
+.inventory-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(30, 28, 16, 0.3);
+  backdrop-filter: blur(3px);
+}
+
+.inventory-preview.hidden {
+  display: none;
+}
+
+.inventory-preview-card {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(50vw, 180px);
+  aspect-ratio: 1;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 253, 248, 0.98);
+  border: 1px solid rgba(216, 209, 188, 0.9);
+}
+
+.inventory-preview-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(74, 124, 89, 0.1);
+  color: var(--primary-deep);
+  cursor: pointer;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.inventory-preview-close:focus-visible {
+  outline: 4px solid rgba(74, 124, 89, 0.4);
+  outline-offset: 3px;
+}
+
+.inventory-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
 }
 
 .win-overlay {
@@ -538,18 +697,19 @@ body.is-win .scene-shell::after {
   }
 
   .progress-pill {
-    bottom: 10px;
-    min-width: 136px;
-    padding: 10px 14px;
-    font-size: 1rem;
+    min-width: 104px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
   }
 
   .inventory-header {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
     margin-bottom: 10px;
   }
 
   .inventory-title {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
   }
 
   .ghost-button {
@@ -560,8 +720,14 @@ body.is-win .scene-shell::after {
     gap: 6px;
   }
 
+  .inventory-item {
+    flex-basis: 72px;
+    width: 72px;
+  }
+
   .inventory-icon-frame {
     border-radius: 14px;
+    min-height: 72px;
   }
 
   .inventory-meta {

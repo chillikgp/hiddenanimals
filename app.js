@@ -2,11 +2,16 @@ import { LEVELS } from "./game-data.js";
 
 const sceneShell = document.querySelector("#scene-shell");
 const sceneStage = document.querySelector("#scene-stage");
+const scenePanIndicator = document.querySelector("#scene-pan-indicator");
+const scenePanThumb = document.querySelector("#scene-pan-thumb");
 const inventoryGrid = document.querySelector("#inventory-grid");
 const progressPill = document.querySelector("#progress-pill");
 const winOverlay = document.querySelector("#win-overlay");
 const resetButton = document.querySelector("#reset-button");
 const playAgainButton = document.querySelector("#play-again-button");
+const inventoryPreview = document.querySelector("#inventory-preview");
+const inventoryPreviewImage = document.querySelector("#inventory-preview-image");
+const inventoryPreviewClose = document.querySelector("#inventory-preview-close");
 
 const HIT_PADDING = 40;
 const HIGHLIGHT_DURATION_MS = 2500;
@@ -19,6 +24,7 @@ const foundAnimalIds = new Set();
 const activeHighlightIds = new Set();
 const highlightTimeouts = new Map();
 const highlightStartedAt = new Map();
+let loadLevelRequestId = 0;
 
 // Pan & Zoom State
 let panX = 0;
@@ -32,12 +38,51 @@ const activePointers = new Map();
 let initialPinchDistance = 0;
 let initialPinchScale = 1;
 let lastTapTime = 0;
+let isDraggingPanIndicator = false;
 const PAN_THRESHOLD = 15;
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 const DOUBLE_TAP_DELAY = 300;
 
-function loadLevel(index) {
+function getInventoryImageSrc(animal) {
+  return animal.imageSrc
+    .replace("_latest/", "_latest_for_inventory/")
+    .replace("_gulmarg/", "_gulmarg_for_inventory/");
+}
+
+function getBaseScale() {
+  const levelData = LEVELS[currentLevelIndex];
+  return sceneShell.clientHeight / levelData.scene.height;
+}
+
+function preloadImage(src) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve();
+    image.onerror = () => resolve();
+    image.src = src;
+  });
+}
+
+async function preloadImagesSequentially(sources) {
+  for (const src of sources) {
+    await preloadImage(src);
+  }
+}
+
+function resetViewForLevel(levelData) {
+  sceneStage.style.width = `${levelData.scene.width}px`;
+  sceneStage.style.height = `${levelData.scene.height}px`;
+
+  scale = 1;
+  const baseScale = getBaseScale();
+  const currentScale = baseScale * scale;
+  panX = (sceneShell.clientWidth - levelData.scene.width * currentScale) / 2;
+  panY = 0;
+}
+
+async function loadLevel(index) {
+  const requestId = ++loadLevelRequestId;
   currentLevelIndex = index;
   const levelData = LEVELS[currentLevelIndex];
   
@@ -51,17 +96,9 @@ function loadLevel(index) {
   clearHighlightTimers();
   highlightStartedAt.clear();
   clearCoverTimers();
+  closeInventoryPreview();
 
-  // Update scene stage dimensions
-  sceneStage.style.width = `${levelData.scene.width}px`;
-  sceneStage.style.height = `${levelData.scene.height}px`;
-
-  // Initial view reset
-  scale = 1;
-  const baseScale = sceneShell.clientHeight / levelData.scene.height;
-  const currentScale = baseScale * scale;
-  panX = (sceneShell.clientWidth - levelData.scene.width * currentScale) / 2;
-  panY = 0;
+  resetViewForLevel(levelData);
 
   animals = levelData.animals.map((animal, idx) => ({
     ...animal,
@@ -74,6 +111,32 @@ function loadLevel(index) {
     state: "closed",
     openTimer: null
   }));
+
+  sceneStage.innerHTML = "";
+  inventoryGrid.innerHTML = "";
+  renderProgress();
+  renderWinState();
+  updateStageScale();
+
+  await preloadImage(levelData.scene.backgroundSrc);
+  if (requestId !== loadLevelRequestId) {
+    return;
+  }
+  renderScene({ includeCovers: false, includeAnimals: false });
+
+  await preloadImagesSequentially(covers.map((cover) => cover.imageSrc));
+  if (requestId !== loadLevelRequestId) {
+    return;
+  }
+  renderScene({ includeCovers: true, includeAnimals: false });
+
+  await preloadImagesSequentially([
+    ...animals.map((animal) => animal.imageSrc),
+    ...animals.map((animal) => getInventoryImageSrc(animal)),
+  ]);
+  if (requestId !== loadLevelRequestId) {
+    return;
+  }
 
   render();
   updateStageScale();
@@ -210,16 +273,20 @@ function createCoverMarkup(cover) {
   `;
 }
 
-function renderScene() {
+function renderScene({ includeCovers = true, includeAnimals = true } = {}) {
   const levelData = LEVELS[currentLevelIndex];
-  const animalMarkup = [...animals]
-    .sort((first, second) => first.zIndex - second.zIndex)
-    .map((animal) => createAnimalMarkup(animal))
-    .join("");
-  const coverMarkup = [...covers]
-    .sort((first, second) => first.zIndex - second.zIndex)
-    .map((cover) => createCoverMarkup(cover))
-    .join("");
+  const animalMarkup = includeAnimals
+    ? [...animals]
+        .sort((first, second) => first.zIndex - second.zIndex)
+        .map((animal) => createAnimalMarkup(animal))
+        .join("")
+    : "";
+  const coverMarkup = includeCovers
+    ? [...covers]
+        .sort((first, second) => first.zIndex - second.zIndex)
+        .map((cover) => createCoverMarkup(cover))
+        .join("")
+    : "";
 
   sceneStage.innerHTML = `
     <img
@@ -235,33 +302,51 @@ function renderScene() {
 function renderInventory() {
   const inventoryTitle = document.querySelector(".inventory-title");
   if (inventoryTitle) {
-    inventoryTitle.textContent = `Find all ${animals.length} animals`;
+    inventoryTitle.textContent = `Find ${animals.length} hidden animals`;
   }
 
   inventoryGrid.innerHTML = animals
     .map((animal) => {
       const isFound = foundAnimalIds.has(animal.id);
-      const inventoryImageSrc = animal.imageSrc
-        .replace("_latest/", "_latest_for_inventory/")
-        .replace("_gulmarg/", "_gulmarg_for_inventory/");
+      const inventoryImageSrc = getInventoryImageSrc(animal);
         
       return `
-        <div class="inventory-item ${isFound ? "is-found" : ""}">
-          <div class="inventory-icon-frame">
+        <button class="inventory-item ${isFound ? "is-found" : ""}" type="button" data-inventory-animal-id="${animal.id}" aria-label="Preview ${animal.name}">
+          <span class="inventory-icon-frame">
             <img
               class="inventory-icon"
               src="${inventoryImageSrc}"
               alt="${animal.name}"
               draggable="false"
             />
-          </div>
-          <div class="inventory-meta">
+          </span>
+          <span class="inventory-meta">
             <span class="inventory-check ${isFound ? "is-visible" : ""}" aria-hidden="true">✓</span>
-          </div>
-        </div>
+          </span>
+        </button>
       `;
     })
     .join("");
+}
+
+function openInventoryPreview(animalId) {
+  const animal = animals.find((entry) => entry.id === animalId);
+  if (!animal) {
+    return;
+  }
+
+  inventoryPreviewImage.src = getInventoryImageSrc(animal);
+  inventoryPreviewImage.alt = animal.name;
+  inventoryPreview.classList.remove("hidden");
+  inventoryPreview.setAttribute("aria-hidden", "false");
+  inventoryPreviewClose.focus();
+}
+
+function closeInventoryPreview() {
+  inventoryPreview.classList.add("hidden");
+  inventoryPreview.setAttribute("aria-hidden", "true");
+  inventoryPreviewImage.removeAttribute("src");
+  inventoryPreviewImage.alt = "";
 }
 
 function renderProgress() {
@@ -338,7 +423,7 @@ function clampViewState() {
   const shellWidth = sceneShell.clientWidth;
   const shellHeight = sceneShell.clientHeight;
   
-  const baseScale = shellHeight / levelData.scene.height;
+  const baseScale = getBaseScale();
   
   scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
   const currentScale = baseScale * scale;
@@ -371,12 +456,68 @@ function clampViewState() {
   }
 }
 
+function getHorizontalPanMetrics() {
+  const levelData = LEVELS[currentLevelIndex];
+  const shellWidth = sceneShell.clientWidth;
+  const baseScale = getBaseScale();
+  const currentScale = baseScale * scale;
+  const stageWidth = levelData.scene.width * currentScale;
+
+  return {
+    shellWidth,
+    stageWidth,
+    overflow: Math.max(0, stageWidth - shellWidth),
+  };
+}
+
+function updatePanIndicator() {
+  const { shellWidth, stageWidth, overflow } = getHorizontalPanMetrics();
+  const canPanHorizontally = overflow > 1;
+
+  scenePanIndicator.classList.toggle("is-visible", canPanHorizontally);
+  scenePanIndicator.setAttribute("aria-hidden", String(!canPanHorizontally));
+
+  if (!canPanHorizontally) {
+    scenePanIndicator.setAttribute("aria-valuenow", "0");
+    scenePanThumb.style.width = "100%";
+    scenePanThumb.style.transform = "translateX(0)";
+    return;
+  }
+
+  const railWidth = scenePanIndicator.clientWidth;
+  const thumbWidth = Math.max(42, Math.min(railWidth, (shellWidth / stageWidth) * railWidth));
+  const travelWidth = Math.max(1, railWidth - thumbWidth);
+  const progress = Math.min(1, Math.max(0, -panX / overflow));
+
+  scenePanIndicator.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
+  scenePanThumb.style.width = `${thumbWidth}px`;
+  scenePanThumb.style.transform = `translateX(${progress * travelWidth}px)`;
+}
+
+function setHorizontalPanFromIndicator(clientX) {
+  const { overflow } = getHorizontalPanMetrics();
+  if (overflow <= 1) {
+    return;
+  }
+
+  const railRect = scenePanIndicator.getBoundingClientRect();
+  const thumbWidth = scenePanThumb.getBoundingClientRect().width;
+  const travelWidth = Math.max(1, railRect.width - thumbWidth);
+  const progress = Math.min(
+    1,
+    Math.max(0, (clientX - railRect.left - thumbWidth / 2) / travelWidth)
+  );
+
+  panX = -progress * overflow;
+  updateStageScale();
+}
+
 function updateStageScale() {
   clampViewState();
-  const levelData = LEVELS[currentLevelIndex];
-  const baseScale = sceneShell.clientHeight / levelData.scene.height;
+  const baseScale = getBaseScale();
   const currentScale = baseScale * scale;
   sceneStage.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
+  updatePanIndicator();
 }
 
 function handleZoom(delta, focalX, focalY) {
@@ -405,6 +546,49 @@ sceneShell.addEventListener("wheel", (event) => {
   const focalY = event.clientY - rect.top;
   handleZoom(event.deltaY, focalX, focalY);
 }, { passive: false });
+
+scenePanIndicator.addEventListener("pointerdown", (event) => {
+  if (!scenePanIndicator.classList.contains("is-visible")) {
+    return;
+  }
+
+  event.preventDefault();
+  isDraggingPanIndicator = true;
+  scenePanIndicator.setPointerCapture(event.pointerId);
+  setHorizontalPanFromIndicator(event.clientX);
+});
+
+scenePanIndicator.addEventListener("pointermove", (event) => {
+  if (!isDraggingPanIndicator) {
+    return;
+  }
+
+  event.preventDefault();
+  setHorizontalPanFromIndicator(event.clientX);
+});
+
+scenePanIndicator.addEventListener("pointerup", (event) => {
+  isDraggingPanIndicator = false;
+  scenePanIndicator.releasePointerCapture(event.pointerId);
+});
+
+scenePanIndicator.addEventListener("pointercancel", () => {
+  isDraggingPanIndicator = false;
+});
+
+scenePanIndicator.addEventListener("keydown", (event) => {
+  const { overflow } = getHorizontalPanMetrics();
+  if (overflow <= 1) {
+    return;
+  }
+
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    event.preventDefault();
+    const direction = event.key === "ArrowLeft" ? 1 : -1;
+    panX += direction * Math.max(24, sceneShell.clientWidth * 0.12);
+    updateStageScale();
+  }
+});
 
 sceneShell.addEventListener("pointerdown", (event) => {
   activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -632,20 +816,40 @@ sceneStage.addEventListener("click", (event) => {
 
 resetButton.addEventListener("click", resetGame);
 playAgainButton.addEventListener("click", handleNextLevel);
+inventoryGrid.addEventListener("click", (event) => {
+  const inventoryItem = event.target.closest("[data-inventory-animal-id]");
+  if (!inventoryItem) {
+    return;
+  }
+
+  openInventoryPreview(inventoryItem.dataset.inventoryAnimalId);
+});
+inventoryPreviewClose.addEventListener("click", closeInventoryPreview);
+inventoryPreview.addEventListener("click", (event) => {
+  if (event.target === inventoryPreview) {
+    closeInventoryPreview();
+  }
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !inventoryPreview.classList.contains("hidden")) {
+    closeInventoryPreview();
+  }
+});
 
 const resizeObserver = new ResizeObserver(() => {
   updateStageScale();
 });
+resizeObserver.observe(sceneShell);
 
 // Initial load from URL
 // Wait for layout to settle before initial load
 window.addEventListener("DOMContentLoaded", () => {
-  setTimeout(() => {
+  requestAnimationFrame(() => {
     const levelFromUrl = parseInt(new URLSearchParams(window.location.search).get("level"), 10);
     const initialLevel = !isNaN(levelFromUrl) && levelFromUrl > 0 && levelFromUrl <= LEVELS.length
       ? levelFromUrl - 1
       : 0;
     
     loadLevel(initialLevel);
-  }, 50);
+  });
 });
