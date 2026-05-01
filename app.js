@@ -28,9 +28,14 @@ let isPanning = false;
 let startX = 0;
 let startY = 0;
 let hasPanned = false;
-const PAN_THRESHOLD = 5;
-const MIN_SCALE = 0.5;
+const activePointers = new Map();
+let initialPinchDistance = 0;
+let initialPinchScale = 1;
+let lastTapTime = 0;
+const PAN_THRESHOLD = 15;
+const MIN_SCALE = 1;
 const MAX_SCALE = 4;
+const DOUBLE_TAP_DELAY = 300;
 
 function loadLevel(index) {
   currentLevelIndex = index;
@@ -51,10 +56,15 @@ function loadLevel(index) {
   sceneStage.style.width = `${levelData.scene.width}px`;
   sceneStage.style.height = `${levelData.scene.height}px`;
 
-  // Reset pan/zoom on level load
-  panX = 0;
-  panY = 0;
+  // Initial view reset
   scale = 1;
+  const baseScale = Math.min(
+    sceneShell.clientWidth / levelData.scene.width,
+    sceneShell.clientHeight / levelData.scene.height
+  );
+  const currentScale = baseScale * scale;
+  panX = (sceneShell.clientWidth - levelData.scene.width * currentScale) / 2;
+  panY = (sceneShell.clientHeight - levelData.scene.height * currentScale) / 2;
 
   animals = levelData.animals.map((animal, idx) => ({
     ...animal,
@@ -326,66 +336,192 @@ function syncCoveredAnimalsForCover(coverId) {
     });
 }
 
-function updateStageScale() {
+function clampViewState() {
   const levelData = LEVELS[currentLevelIndex];
   const shellWidth = sceneShell.clientWidth;
   const shellHeight = sceneShell.clientHeight;
   
-  // Calculate base scale to fit the scene
   const baseScale = Math.min(
     shellWidth / levelData.scene.width,
     shellHeight / levelData.scene.height
   );
   
+  scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
   const currentScale = baseScale * scale;
   
-  // Calculate initial offsets to center the scene
-  const initialOffsetX = (shellWidth - levelData.scene.width * currentScale) / 2;
-  const initialOffsetY = (shellHeight - levelData.scene.height * currentScale) / 2;
+  const stageWidth = levelData.scene.width * currentScale;
+  const stageHeight = levelData.scene.height * currentScale;
+  
+  const minPanX = Math.min(0, shellWidth - stageWidth);
+  const maxPanX = Math.max(0, shellWidth - stageWidth);
+  const minPanY = Math.min(0, shellHeight - stageHeight);
+  const maxPanY = Math.max(0, shellHeight - stageHeight);
 
-  sceneStage.style.transform = `translate(${initialOffsetX + panX}px, ${initialOffsetY + panY}px) scale(${currentScale})`;
+  // If stage is smaller than shell, we want to center it, not just clamp to 0.
+  // Actually, the user's min/max logic:
+  // minPanX = min(0, viewportWidth - scaledWidth)
+  // maxPanX = 0
+  // This works if we want it anchored to top-left when larger.
+  // But let's follow the centering intent if smaller:
+  
+  if (stageWidth > shellWidth) {
+    panX = Math.min(0, Math.max(shellWidth - stageWidth, panX));
+  } else {
+    panX = (shellWidth - stageWidth) / 2;
+  }
+  
+  if (stageHeight > shellHeight) {
+    panY = Math.min(0, Math.max(shellHeight - stageHeight, panY));
+  } else {
+    panY = (shellHeight - stageHeight) / 2;
+  }
+}
+
+function updateStageScale() {
+  clampViewState();
+  const levelData = LEVELS[currentLevelIndex];
+  const baseScale = Math.min(
+    sceneShell.clientWidth / levelData.scene.width,
+    sceneShell.clientHeight / levelData.scene.height
+  );
+  const currentScale = baseScale * scale;
+  sceneStage.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
+}
+
+function handleZoom(delta, focalX, focalY) {
+  // Exponential scaling for smoother feel
+  const zoomFactor = 1 - delta * 0.001;
+  const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * zoomFactor));
+  
+  if (newScale !== scale) {
+    const scaleRatio = newScale / scale;
+    
+    // Expert focal point math:
+    // focalX/Y are screen coordinates
+    panX = focalX - (focalX - panX) * scaleRatio;
+    panY = focalY - (focalY - panY) * scaleRatio;
+    
+    scale = newScale;
+    updateStageScale();
+  }
 }
 
 // Interaction Listeners
 sceneShell.addEventListener("wheel", (event) => {
   event.preventDefault();
-  const zoomFactor = event.deltaY > 0 ? 0.95 : 1.05; // Slightly slower zoom
-  const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * zoomFactor));
-  
-  if (newScale !== scale) {
-    scale = newScale;
-    updateStageScale();
-  }
+  const rect = sceneShell.getBoundingClientRect();
+  const focalX = event.clientX - rect.left;
+  const focalY = event.clientY - rect.top;
+  handleZoom(event.deltaY, focalX, focalY);
 }, { passive: false });
 
 sceneShell.addEventListener("pointerdown", (event) => {
-  // Only pan with primary button
-  if (event.button !== 0) return;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   
-  isPanning = true;
-  startX = event.clientX - panX;
-  startY = event.clientY - panY;
-  hasPanned = false;
+  if (activePointers.size === 1) {
+    isPanning = true;
+    startX = event.clientX - panX;
+    startY = event.clientY - panY;
+    hasPanned = false;
+    
+    // Double tap detection
+    const now = Date.now();
+    if (now - lastTapTime < DOUBLE_TAP_DELAY) {
+      handleDoubleTap(event);
+      lastTapTime = 0;
+    } else {
+      lastTapTime = now;
+    }
+  } else if (activePointers.size === 2) {
+    isPanning = false;
+    const pointers = Array.from(activePointers.values());
+    initialPinchDistance = Math.hypot(
+      pointers[0].x - pointers[1].x,
+      pointers[0].y - pointers[1].y
+    );
+    initialPinchScale = scale;
+  }
 });
 
-window.addEventListener("pointermove", (event) => {
-  if (!isPanning) return;
+function handleDoubleTap(event) {
+  const rect = sceneShell.getBoundingClientRect();
+  const focalX = event.clientX - rect.left;
+  const focalY = event.clientY - rect.top;
   
-  const dx = event.clientX - startX;
-  const dy = event.clientY - startY;
+  const targetScale = scale > 1.5 ? 1 : 2.5;
+  const scaleRatio = targetScale / scale;
   
-  if (!hasPanned && (Math.abs(dx - panX) > PAN_THRESHOLD || Math.abs(dy - panY) > PAN_THRESHOLD)) {
-    hasPanned = true;
-  }
+  panX = focalX - (focalX - panX) * scaleRatio;
+  panY = focalY - (focalY - panY) * scaleRatio;
   
-  panX = dx;
-  panY = dy;
+  scale = targetScale;
   updateStageScale();
+  hasPanned = true; 
+}
+
+window.addEventListener("pointermove", (event) => {
+  if (!activePointers.has(event.pointerId)) return;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  if (activePointers.size === 1 && isPanning) {
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    
+    if (!hasPanned && (Math.abs(dx - panX) > PAN_THRESHOLD || Math.abs(dy - panY) > PAN_THRESHOLD)) {
+      hasPanned = true;
+    }
+    
+    panX = dx;
+    panY = dy;
+    updateStageScale();
+  } else if (activePointers.size === 2) {
+    const pointers = Array.from(activePointers.values());
+    const currentDistance = Math.hypot(
+      pointers[0].x - pointers[1].x,
+      pointers[0].y - pointers[1].y
+    );
+    
+    const focalX = (pointers[0].x + pointers[1].x) / 2 - sceneShell.getBoundingClientRect().left;
+    const focalY = (pointers[0].y + pointers[1].y) / 2 - sceneShell.getBoundingClientRect().top;
+
+    if (initialPinchDistance > 0) {
+      const pinchScale = currentDistance / initialPinchDistance;
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, initialPinchScale * pinchScale));
+      
+      if (newScale !== scale) {
+        const scaleRatio = newScale / scale;
+        panX = focalX - (focalX - panX) * scaleRatio;
+        panY = focalY - (focalY - panY) * scaleRatio;
+        scale = newScale;
+        updateStageScale();
+      }
+    }
+  }
 });
 
 window.addEventListener("pointerup", (event) => {
-  if (!isPanning) return;
-  isPanning = false;
+  activePointers.delete(event.pointerId);
+  
+  if (activePointers.size < 2) {
+    initialPinchDistance = 0;
+  }
+  
+  if (activePointers.size === 0) {
+    isPanning = false;
+  } else if (activePointers.size === 1) {
+    // Resume panning with the remaining pointer
+    const remaining = activePointers.values().next().value;
+    startX = remaining.x - panX;
+    startY = remaining.y - panY;
+    isPanning = true;
+  }
+});
+
+window.addEventListener("pointercancel", (event) => {
+  activePointers.delete(event.pointerId);
+  if (activePointers.size === 0) {
+    isPanning = false;
+  }
 });
 
 function removeHighlight(animalId) {
@@ -511,10 +647,14 @@ const resizeObserver = new ResizeObserver(() => {
 });
 
 // Initial load from URL
-const params = new URLSearchParams(window.location.search);
-const levelParam = parseInt(params.get("level"), 10);
-const initialLevel = !isNaN(levelParam) && levelParam > 0 && levelParam <= LEVELS.length 
-  ? levelParam - 1 
-  : 0;
-
-loadLevel(initialLevel);
+// Wait for layout to settle before initial load
+window.addEventListener("DOMContentLoaded", () => {
+  setTimeout(() => {
+    const levelFromUrl = parseInt(new URLSearchParams(window.location.search).get("level"), 10);
+    const initialLevel = !isNaN(levelFromUrl) && levelFromUrl > 0 && levelFromUrl <= LEVELS.length
+      ? levelFromUrl - 1
+      : 0;
+    
+    loadLevel(initialLevel);
+  }, 50);
+});
