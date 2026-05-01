@@ -16,6 +16,7 @@ const inventoryPreviewClose = document.querySelector("#inventory-preview-close")
 const HIT_PADDING = 40;
 const HIGHLIGHT_DURATION_MS = 2500;
 const COVER_OPEN_DURATION_MS = 5000;
+const WIN_REVEAL_DELAY_MS = 1000;
 
 let currentLevelIndex = 0;
 let animals = [];
@@ -25,6 +26,8 @@ const activeHighlightIds = new Set();
 const highlightTimeouts = new Map();
 const highlightStartedAt = new Map();
 let loadLevelRequestId = 0;
+let winRevealTimer = null;
+let isWinRevealReady = false;
 
 // Pan & Zoom State
 let panX = 0;
@@ -74,11 +77,33 @@ function resetViewForLevel(levelData) {
   sceneStage.style.width = `${levelData.scene.width}px`;
   sceneStage.style.height = `${levelData.scene.height}px`;
 
+  resetSceneZoom(levelData);
+}
+
+function resetSceneZoom(levelData = LEVELS[currentLevelIndex]) {
   scale = 1;
   const baseScale = getBaseScale();
   const currentScale = baseScale * scale;
   panX = (sceneShell.clientWidth - levelData.scene.width * currentScale) / 2;
   panY = 0;
+}
+
+function clearWinRevealTimer() {
+  if (winRevealTimer) {
+    window.clearTimeout(winRevealTimer);
+    winRevealTimer = null;
+  }
+}
+
+function scheduleWinReveal() {
+  clearWinRevealTimer();
+  isWinRevealReady = false;
+
+  winRevealTimer = window.setTimeout(() => {
+    winRevealTimer = null;
+    isWinRevealReady = true;
+    renderWinState();
+  }, WIN_REVEAL_DELAY_MS);
 }
 
 async function loadLevel(index) {
@@ -96,6 +121,8 @@ async function loadLevel(index) {
   clearHighlightTimers();
   highlightStartedAt.clear();
   clearCoverTimers();
+  clearWinRevealTimer();
+  isWinRevealReady = false;
   closeInventoryPreview();
 
   resetViewForLevel(levelData);
@@ -355,11 +382,12 @@ function renderProgress() {
 
 function renderWinState() {
   const hasWon = foundAnimalIds.size === animals.length;
-  winOverlay.classList.toggle("hidden", !hasWon);
-  winOverlay.setAttribute("aria-hidden", String(!hasWon));
-  document.body.classList.toggle("is-win", hasWon);
+  const shouldShowWin = hasWon && isWinRevealReady;
+  winOverlay.classList.toggle("hidden", !shouldShowWin);
+  winOverlay.setAttribute("aria-hidden", String(!shouldShowWin));
+  document.body.classList.toggle("is-win", shouldShowWin);
 
-  if (hasWon) {
+  if (shouldShowWin) {
     const hasNextLevel = currentLevelIndex < LEVELS.length - 1;
     const title = winOverlay.querySelector("h1");
     const text = winOverlay.querySelector("p");
@@ -781,7 +809,16 @@ function markAnimalFound(animalId) {
     animal.found = true;
   }
 
+  const hasWon = foundAnimalIds.size === animals.length;
+  if (hasWon) {
+    resetSceneZoom();
+    scheduleWinReveal();
+  }
+
   render();
+  if (hasWon) {
+    updateStageScale();
+  }
   scheduleHighlightRemoval(animalId);
 }
 

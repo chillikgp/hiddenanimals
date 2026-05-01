@@ -569,8 +569,9 @@ button {
   inset: 0;
   z-index: 20;
   display: grid;
-  place-items: center;
-  padding: 24px;
+  align-items: center;
+  justify-items: center;
+  padding: 18px;
   background: rgba(30, 28, 16, 0.28);
   backdrop-filter: blur(3px);
 }
@@ -580,38 +581,45 @@ button {
 }
 
 .win-card {
-  width: min(100%, 420px);
-  padding: 34px 28px 28px;
-  border-radius: 28px;
+  width: min(82vw, 280px);
+  padding: 22px 20px 20px;
+  border-radius: 22px;
   background: rgba(255, 253, 248, 0.98);
   box-shadow: var(--shadow-card);
   text-align: center;
 }
 
 .win-card h1 {
-  margin: 0 0 12px;
-  font-size: clamp(2rem, 6vw, 3.1rem);
-  line-height: 1;
-  letter-spacing: -0.04em;
+  margin: 0 0 8px;
+  font-size: 1.55rem;
+  line-height: 1.04;
 }
 
 .win-card p {
-  margin: 0 0 24px;
+  margin: 0 0 16px;
   color: var(--muted);
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.win-card .primary-button {
+  min-width: 0;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-size: 0.92rem;
 }
 
 .win-badge {
   display: grid;
   place-items: center;
-  width: 84px;
-  height: 84px;
-  margin: 0 auto 20px;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 12px;
   border-radius: 999px;
   background: radial-gradient(circle, rgba(254, 176, 99, 0.25), transparent 72%);
   color: #a95e13;
-  font-size: 2.8rem;
+  font-size: 1.7rem;
 }
 
 body.is-win .scene-shell::after {
