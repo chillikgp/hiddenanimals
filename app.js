@@ -58,13 +58,10 @@ function loadLevel(index) {
 
   // Initial view reset
   scale = 1;
-  const baseScale = Math.min(
-    sceneShell.clientWidth / levelData.scene.width,
-    sceneShell.clientHeight / levelData.scene.height
-  );
+  const baseScale = sceneShell.clientHeight / levelData.scene.height;
   const currentScale = baseScale * scale;
   panX = (sceneShell.clientWidth - levelData.scene.width * currentScale) / 2;
-  panY = (sceneShell.clientHeight - levelData.scene.height * currentScale) / 2;
+  panY = 0;
 
   animals = levelData.animals.map((animal, idx) => ({
     ...animal,
@@ -341,10 +338,7 @@ function clampViewState() {
   const shellWidth = sceneShell.clientWidth;
   const shellHeight = sceneShell.clientHeight;
   
-  const baseScale = Math.min(
-    shellWidth / levelData.scene.width,
-    shellHeight / levelData.scene.height
-  );
+  const baseScale = shellHeight / levelData.scene.height;
   
   scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
   const currentScale = baseScale * scale;
@@ -380,10 +374,7 @@ function clampViewState() {
 function updateStageScale() {
   clampViewState();
   const levelData = LEVELS[currentLevelIndex];
-  const baseScale = Math.min(
-    sceneShell.clientWidth / levelData.scene.width,
-    sceneShell.clientHeight / levelData.scene.height
-  );
+  const baseScale = sceneShell.clientHeight / levelData.scene.height;
   const currentScale = baseScale * scale;
   sceneStage.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
 }
