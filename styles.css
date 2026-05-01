@@ -10,8 +10,8 @@
   --primary-deep: #2e573e;
   --accent: #feb063;
   --accent-soft: rgba(254, 176, 99, 0.22);
-  --shadow-soft: 0 16px 30px rgba(20, 28, 18, 0.08);
-  --shadow-card: 0 24px 60px rgba(17, 22, 16, 0.24);
+  --shadow-soft: none;
+  --shadow-card: none;
   --safe-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
@@ -76,21 +76,25 @@ button {
   min-height: 320px;
   overflow: hidden;
   border-radius: 28px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.scene-shell:active {
+  cursor: grabbing;
 }
 
 .scene-stage {
   position: absolute;
   inset: 0 auto auto 0;
-  width: 1760px;
-  height: 2416px;
   transform-origin: top left;
   will-change: transform;
 }
 
 .scene-background {
   display: block;
-  width: 1760px;
-  height: 2416px;
+  width: 100%;
+  height: 100%;
   user-select: none;
   pointer-events: none;
 }
@@ -172,7 +176,7 @@ button {
   object-fit: contain;
   pointer-events: none;
   user-select: none;
-  filter: drop-shadow(0 4px 10px rgba(22, 28, 18, 0.12));
+  filter: none;
 }
 
 .animal-highlight {
@@ -181,7 +185,7 @@ button {
   border-radius: 999px;
   background: #fff;
   border: 3px solid #111;
-  box-shadow: 0 16px 32px rgba(17, 17, 17, 0.2);
+  box-shadow: none;
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 0;
@@ -223,7 +227,13 @@ button {
 .cover-button.is-open {
   transform: translateY(calc(-1 * var(--cover-lift)));
   opacity: 0.92;
-  filter: drop-shadow(0 18px 20px rgba(17, 17, 17, 0.18));
+  filter: none;
+}
+
+.cover-button.is-open-disappeared {
+  opacity: 0;
+  pointer-events: none;
+  filter: none;
 }
 
 .cover-button:focus-visible {
@@ -261,13 +271,15 @@ button {
 }
 
 .inventory-bar {
-  position: sticky;
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
-  z-index: 8;
+  z-index: 100;
   padding: 14px 14px calc(12px + var(--safe-bottom));
   background: rgba(253, 251, 245, 0.92);
   border-top: 2px solid rgba(216, 209, 188, 0.92);
-  box-shadow: 0 -16px 40px rgba(17, 22, 16, 0.08);
+  box-shadow: none;
   backdrop-filter: blur(16px);
 }
 
@@ -307,7 +319,6 @@ button {
   min-width: 180px;
   background: var(--primary);
   color: #fff;
-  box-shadow: 0 6px 0 var(--primary-deep);
 }
 
 .ghost-button:hover,
@@ -321,7 +332,7 @@ button {
 }
 
 .primary-button:active {
-  box-shadow: 0 4px 0 var(--primary-deep);
+  transform: translateY(2px);
 }
 
 .inventory-grid {
@@ -345,14 +356,13 @@ button {
   border-radius: 18px;
   background: var(--surface-strong);
   border: 2px dashed rgba(93, 101, 90, 0.3);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  box-shadow: none;
   transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
 .inventory-item.is-found .inventory-icon-frame {
   background: var(--primary);
   border-color: rgba(74, 124, 89, 0.92);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 10px 22px rgba(74, 124, 89, 0.2);
 }
 
 .inventory-icon {

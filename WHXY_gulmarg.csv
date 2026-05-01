@@ -1,0 +1,15 @@
+Layer name,W,H,X,Y,Can Move,Covering Layer Name
+bg,1696,2528,0,0,No,
+monkey2,96,120,46,2221,Vertical,
+kettle,45,51,1612,1982,No,
+fox,45,42,1466,844,Horizontal,
+skii,64,70,427,469,Horizontal,
+kid,127,144,1284,1586,No,door
+dog,120,121,123,1922,No,couple
+monkey1,78,64,1402,2046,No,uncle
+squirrel,120,83,1178,1278,No,antenna
+cam,43,77,432,865,No,
+door,184,209,1259,1559,No,
+couple,244,228,86,1958,No,
+uncle,104,170,1420,2003,No,
+antenna,192,137,1155,1248,No,

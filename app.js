@@ -1,4 +1,4 @@
-import { GAME_DATA } from "./game-data.js";
+import { LEVELS } from "./game-data.js";
 
 const sceneShell = document.querySelector("#scene-shell");
 const sceneStage = document.querySelector("#scene-stage");
@@ -11,16 +11,67 @@ const playAgainButton = document.querySelector("#play-again-button");
 const HIT_PADDING = 40;
 const HIGHLIGHT_DURATION_MS = 2500;
 const COVER_OPEN_DURATION_MS = 5000;
+
+let currentLevelIndex = 0;
+let animals = [];
+let covers = [];
 const foundAnimalIds = new Set();
 const activeHighlightIds = new Set();
 const highlightTimeouts = new Map();
 const highlightStartedAt = new Map();
-const animals = GAME_DATA.animals.map((animal, index) => ({
-  ...animal,
-  motionDuration: `${(2.15 + (index % 5) * 0.38).toFixed(2)}s`,
-  motionDelay: `${(-0.35 - index * 0.31).toFixed(2)}s`,
-}));
-const covers = GAME_DATA.covers.map((cover) => ({ ...cover }));
+
+// Pan & Zoom State
+let panX = 0;
+let panY = 0;
+let scale = 1;
+let isPanning = false;
+let startX = 0;
+let startY = 0;
+let hasPanned = false;
+const PAN_THRESHOLD = 5;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 4;
+
+function loadLevel(index) {
+  currentLevelIndex = index;
+  const levelData = LEVELS[currentLevelIndex];
+  
+  // Update URL without reloading
+  const url = new URL(window.location);
+  url.searchParams.set("level", currentLevelIndex + 1);
+  window.history.replaceState({}, "", url);
+
+  foundAnimalIds.clear();
+  activeHighlightIds.clear();
+  clearHighlightTimers();
+  highlightStartedAt.clear();
+  clearCoverTimers();
+
+  // Update scene stage dimensions
+  sceneStage.style.width = `${levelData.scene.width}px`;
+  sceneStage.style.height = `${levelData.scene.height}px`;
+
+  // Reset pan/zoom on level load
+  panX = 0;
+  panY = 0;
+  scale = 1;
+
+  animals = levelData.animals.map((animal, idx) => ({
+    ...animal,
+    motionDuration: `${(2.15 + (idx % 5) * 0.38).toFixed(2)}s`,
+    motionDelay: `${(-0.35 - idx * 0.31).toFixed(2)}s`,
+  }));
+  
+  covers = levelData.covers.map((cover) => ({ 
+    ...cover,
+    state: "closed",
+    openTimer: null
+  }));
+
+  render();
+  updateStageScale();
+}
+
 
 function clearHighlightTimers() {
   highlightTimeouts.forEach((timeoutId) => {
@@ -69,8 +120,12 @@ function createAnimalMarkup(animal) {
   const highlightAge = Date.now() - (highlightStartedAt.get(animal.id) ?? 0);
   const shouldAnimateFoundState = hasActiveHighlight && highlightAge < 450;
   const highlightSize = Math.round(Math.max(animal.width, animal.height) * 1.5);
-  const motionClass =
-    animal.movementAxis === "y" ? "animal-motion is-vertical" : "animal-motion is-horizontal";
+  let motionClass = "animal-motion";
+  if (animal.movementAxis === "y") {
+    motionClass += " is-vertical";
+  } else if (animal.movementAxis === "x") {
+    motionClass += " is-horizontal";
+  }
   const isCoveredClosed = !isFound && animal.coverId && !isCoverOpen(animal.coverId);
 
   return `
@@ -124,10 +179,12 @@ function createAnimalMarkup(animal) {
 
 function createCoverMarkup(cover) {
   const isOpen = cover.state === "open";
+  const useDisappear = currentLevelIndex === 1;
+  const openClass = isOpen ? (useDisappear ? "is-open-disappeared" : "is-open") : "";
 
   return `
     <button
-      class="cover-button ${isOpen ? "is-open" : ""}"
+      class="cover-button ${openClass}"
       type="button"
       data-cover-id="${cover.id}"
       aria-label="Lift ${cover.name}"
@@ -147,6 +204,7 @@ function createCoverMarkup(cover) {
 }
 
 function renderScene() {
+  const levelData = LEVELS[currentLevelIndex];
   const animalMarkup = [...animals]
     .sort((first, second) => first.zIndex - second.zIndex)
     .map((animal) => createAnimalMarkup(animal))
@@ -159,8 +217,8 @@ function renderScene() {
   sceneStage.innerHTML = `
     <img
       class="scene-background"
-      src="${GAME_DATA.scene.backgroundSrc}"
-      alt="Dense jungle background for the hidden animal playtest"
+      src="${levelData.scene.backgroundSrc}"
+      alt="Background for the hidden animal playtest"
     />
     ${animalMarkup}
     ${coverMarkup}
@@ -168,15 +226,24 @@ function renderScene() {
 }
 
 function renderInventory() {
+  const inventoryTitle = document.querySelector(".inventory-title");
+  if (inventoryTitle) {
+    inventoryTitle.textContent = `Find all ${animals.length} animals`;
+  }
+
   inventoryGrid.innerHTML = animals
     .map((animal) => {
       const isFound = foundAnimalIds.has(animal.id);
+      const inventoryImageSrc = animal.imageSrc
+        .replace("_latest/", "_latest_for_inventory/")
+        .replace("_gulmarg/", "_gulmarg_for_inventory/");
+        
       return `
         <div class="inventory-item ${isFound ? "is-found" : ""}">
           <div class="inventory-icon-frame">
             <img
               class="inventory-icon"
-              src="${animal.imageSrc}"
+              src="${inventoryImageSrc}"
               alt="${animal.name}"
               draggable="false"
             />
@@ -199,6 +266,22 @@ function renderWinState() {
   winOverlay.classList.toggle("hidden", !hasWon);
   winOverlay.setAttribute("aria-hidden", String(!hasWon));
   document.body.classList.toggle("is-win", hasWon);
+
+  if (hasWon) {
+    const hasNextLevel = currentLevelIndex < LEVELS.length - 1;
+    const title = winOverlay.querySelector("h1");
+    const text = winOverlay.querySelector("p");
+    
+    if (hasNextLevel) {
+      title.textContent = `Level ${currentLevelIndex + 1} Complete!`;
+      text.textContent = `Excellent job! You've found all the animals. Ready for the next challenge?`;
+      playAgainButton.textContent = "Continue to Level " + (currentLevelIndex + 2);
+    } else {
+      title.textContent = "Game Complete!";
+      text.textContent = "You've uncovered every hidden creature in every level. Amazing work! Tap below to start over.";
+      playAgainButton.textContent = "Play Again from Level 1";
+    }
+  }
 }
 
 function render() {
@@ -216,7 +299,14 @@ function syncCoverDomState(coverId) {
   }
 
   const isOpen = cover.state === "open";
-  coverButton.classList.toggle("is-open", isOpen);
+  const useDisappear = currentLevelIndex === 1;
+
+  if (useDisappear) {
+    coverButton.classList.toggle("is-open-disappeared", isOpen);
+  } else {
+    coverButton.classList.toggle("is-open", isOpen);
+  }
+  
   coverButton.setAttribute("aria-pressed", String(isOpen));
 }
 
@@ -237,19 +327,66 @@ function syncCoveredAnimalsForCover(coverId) {
 }
 
 function updateStageScale() {
+  const levelData = LEVELS[currentLevelIndex];
   const shellWidth = sceneShell.clientWidth;
   const shellHeight = sceneShell.clientHeight;
-  const scale = Math.min(
-    shellWidth / GAME_DATA.scene.width,
-    shellHeight / GAME_DATA.scene.height
+  
+  // Calculate base scale to fit the scene
+  const baseScale = Math.min(
+    shellWidth / levelData.scene.width,
+    shellHeight / levelData.scene.height
   );
-  const renderedWidth = GAME_DATA.scene.width * scale;
-  const renderedHeight = GAME_DATA.scene.height * scale;
-  const offsetX = (shellWidth - renderedWidth) / 2;
-  const offsetY = (shellHeight - renderedHeight) / 2;
+  
+  const currentScale = baseScale * scale;
+  
+  // Calculate initial offsets to center the scene
+  const initialOffsetX = (shellWidth - levelData.scene.width * currentScale) / 2;
+  const initialOffsetY = (shellHeight - levelData.scene.height * currentScale) / 2;
 
-  sceneStage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  sceneStage.style.transform = `translate(${initialOffsetX + panX}px, ${initialOffsetY + panY}px) scale(${currentScale})`;
 }
+
+// Interaction Listeners
+sceneShell.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  const zoomFactor = event.deltaY > 0 ? 0.95 : 1.05; // Slightly slower zoom
+  const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * zoomFactor));
+  
+  if (newScale !== scale) {
+    scale = newScale;
+    updateStageScale();
+  }
+}, { passive: false });
+
+sceneShell.addEventListener("pointerdown", (event) => {
+  // Only pan with primary button
+  if (event.button !== 0) return;
+  
+  isPanning = true;
+  startX = event.clientX - panX;
+  startY = event.clientY - panY;
+  hasPanned = false;
+});
+
+window.addEventListener("pointermove", (event) => {
+  if (!isPanning) return;
+  
+  const dx = event.clientX - startX;
+  const dy = event.clientY - startY;
+  
+  if (!hasPanned && (Math.abs(dx - panX) > PAN_THRESHOLD || Math.abs(dy - panY) > PAN_THRESHOLD)) {
+    hasPanned = true;
+  }
+  
+  panX = dx;
+  panY = dy;
+  updateStageScale();
+});
+
+window.addEventListener("pointerup", (event) => {
+  if (!isPanning) return;
+  isPanning = false;
+});
 
 function removeHighlight(animalId) {
   if (!activeHighlightIds.has(animalId)) {
@@ -338,25 +475,20 @@ function markAnimalFound(animalId) {
 }
 
 function resetGame() {
-  foundAnimalIds.clear();
-  activeHighlightIds.clear();
-  clearHighlightTimers();
-  highlightStartedAt.clear();
-  clearCoverTimers();
+  loadLevel(currentLevelIndex);
+}
 
-  animals.forEach((animal) => {
-    animal.found = false;
-  });
-
-  covers.forEach((cover) => {
-    cover.state = "closed";
-    cover.openTimer = null;
-  });
-
-  render();
+function handleNextLevel() {
+  const nextIndex = (currentLevelIndex + 1) % LEVELS.length;
+  loadLevel(nextIndex);
 }
 
 sceneStage.addEventListener("click", (event) => {
+  // Prevent clicks if we were panning
+  if (hasPanned) {
+    return;
+  }
+
   const coverButton = event.target.closest("[data-cover-id]");
   if (coverButton) {
     openCover(coverButton.dataset.coverId);
@@ -372,13 +504,17 @@ sceneStage.addEventListener("click", (event) => {
 });
 
 resetButton.addEventListener("click", resetGame);
-playAgainButton.addEventListener("click", resetGame);
+playAgainButton.addEventListener("click", handleNextLevel);
 
 const resizeObserver = new ResizeObserver(() => {
   updateStageScale();
 });
 
-resizeObserver.observe(sceneShell);
+// Initial load from URL
+const params = new URLSearchParams(window.location.search);
+const levelParam = parseInt(params.get("level"), 10);
+const initialLevel = !isNaN(levelParam) && levelParam > 0 && levelParam <= LEVELS.length 
+  ? levelParam - 1 
+  : 0;
 
-render();
-updateStageScale();
+loadLevel(initialLevel);
